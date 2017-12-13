@@ -130,9 +130,11 @@ float mapf(float x, float in_min, float in_max, float out_min, float out_max)
 void setup() {
 
 // Get the board ready
-  AudioMemory(50);
+  AudioMemory(200);
   codec.enable();
-  codec.volume(1); //crank it. We'll control volume per drum channel with the mixers.
+  codec.volume(1); //0-1. crank it. We'll control volume per drum channel with the mixers.
+  codec.lineOutLevel(13); //make the codec use the maximum voltage range for output (3.16 volts p-p)
+  codec.dacVolume(1);
   
 //Now set up the oscillators  
   AudioNoInterrupts(); 
@@ -215,11 +217,13 @@ void setup() {
   pinMode(Trig3LED, OUTPUT); 
 
 //switches 
+/*
   pinMode(SwitchA1, INPUT_PULLUP); //Switch input with internal pullup resistor  
   pinMode(SwitchB1, INPUT_PULLUP); //Switch input with internal pullup resistor
   pinMode(SwitchC1, INPUT_PULLUP); //Switch input with internal pullup resistor
   pinMode(SwitchD1, INPUT_PULLUP); //Switch input with internal pullup resistor       
   pinMode(SwitchE1, INPUT_PULLUP); //Switch input with internal pullup resistor 
+  */
 
   AudioInterrupts();
 
@@ -265,6 +269,9 @@ digitalWrite(LEDD, LOW);
 digitalWrite(LEDE, LOW);  
 }
 
+elapsedMillis msec1 = 0; //timing for drum1
+elapsedMillis msec2 = 0; //timing for drum2
+
 void loop() {  //Main loop for the run state
 //Now get values from the knobs and pass them on to the drum parameters
 //=======SET FX Parameters===========
@@ -273,18 +280,20 @@ void loop() {  //Main loop for the run state
 
   int D3Bits = abs(map(analogRead(pD3), 0, 1023, 1, 16) - 16); //abs and subtraction is to make it so bits/sample rate reduce as you turn the knob up
   int E3SampleRate = abs(map(analogRead(pE3), 0, 1023, 1, 44100) - 44100); 
+//drum1
    bitcrusher1.bits(D2Bits); 
    bitcrusher1.sampleRate(E2SampleRate);
-   bitcrusher2.bits(D3Bits); 
-   bitcrusher2.sampleRate(E3SampleRate);
-     
    bitcrusher4.bits(D2Bits); 
    bitcrusher4.sampleRate(E2SampleRate);
+//drum2
+   bitcrusher2.bits(D3Bits); 
+   bitcrusher2.sampleRate(E3SampleRate);
    bitcrusher5.bits(D3Bits); 
    bitcrusher5.sampleRate(E3SampleRate);
 
 
 //=======SET DRUM Parameters======== 
+
 
 // DRUM 1
   int Drum1Freq = map(analogRead(pA2), 0, 1023, 20, 2500); 
@@ -307,6 +316,7 @@ void loop() {  //Main loop for the run state
   envelope3.sustain(0);
   envelope3.attack(abs(Drum1Length - 1000));  
   }
+  
 //------------DRUM 2---------------
   int Drum2Length = map(analogRead(pB3), 0, 1023, 1, 2000);
   if (Drum2Length > 1000) {  //right of center
@@ -324,6 +334,7 @@ void loop() {  //Main loop for the run state
   }
   
 //|||||||||||||||||MODULATION|||||||||||||||||||||||||||||||
+
 //Set modulation knob so that at center there is no effect, left of center is "colder" and right of center is "warmer"
   int ModLevel1 = map(analogRead(pC2), 0, 1023, 1, 2000); 
   mixer3.gain(0, mapf(ModLevel1, 1, 2000, 0, 1.0));
@@ -343,6 +354,7 @@ if (ModLevel1 < 1000) { //left of center
     envelope5.decay(map(abs(ModLevel1 - 1000), 1, 2000, 0, 70)); 
 //  filter1.frequency(map(abs(ModLevel1 - 1000), 1, 2000, 1100, 4410));
   }
+
 
 //------------DRUM 2---------------
   int ModLevel2 = map(analogRead(pC3), 0, 1023, 1, 2000); 
@@ -378,62 +390,80 @@ if (ModLevel2 < 1000) { //left of center
 
 
 
-if (digitalRead(Trigger1Pin) == HIGH) 
+if (digitalRead(Trigger1Pin) == LOW) 
 {
     if (playTimes < 1){
       drum1.noteOn();   //Play the drum1 sound just once
       envelope3.noteOn(); //drum envelope
       envelope5.noteOn(); //noise source
-     // envelope3.noteOff();
-      digitalWrite(Trig1LED, LOW);
+      digitalWrite(Trig1LED, HIGH);
     playTimes = playTimes + 1;
+    msec1 = 0;
     }
     if (playTimes > 1){
       playTimes = playTimes + 1;       //Chill, don't play anything, and increment
-       digitalWrite(Trig1LED, HIGH);
-//       envelope5.noteOff();
+       digitalWrite(Trig1LED, LOW);
     }
-} 
-if ((digitalRead(Trigger1Pin) == LOW)){
-  playTimes = 0;
-  digitalWrite(Trig1LED, HIGH);
+if (msec1 >= 250) {
   envelope3.noteOff();
   envelope5.noteOff();
+}  
+} 
+if ((digitalRead(Trigger1Pin) == HIGH)){
+  playTimes = 0;
+  digitalWrite(Trig1LED, LOW);
 }
-
-
 
 //PLAY DRUM2:
 
-if (digitalRead(Trigger2Pin) == HIGH)
+if (digitalRead(Trigger3Pin) == LOW)
 {
     if (playTimes2 < 1){
       drum2.noteOn();   //Play the drum1 sound just once
       envelope4.noteOn(); //drum envelope
       envelope6.noteOn(); //noise source
-      digitalWrite(Trig2LED, LOW);
+      digitalWrite(Trig3LED, HIGH);
     playTimes2 = playTimes2 + 1;
+    msec2 = 0;
     }
     if (playTimes2 > 1){
       playTimes2 = playTimes2 + 1;       //Chill and increment
-        digitalWrite(Trig2LED, HIGH);
+        digitalWrite(Trig3LED, LOW);
     }
-} 
-if ((digitalRead(Trigger2Pin) == LOW)){
-  playTimes2 = 0;
-  digitalWrite(Trig2LED, HIGH);
+if (msec2 >= 250) {
   envelope4.noteOff();
   envelope6.noteOff();
+}
+} 
+if ((digitalRead(Trigger3Pin) == HIGH)){
+  playTimes2 = 0;
+  digitalWrite(Trig3LED, LOW);
 }
 
 
 
 
 //  Here for troubleshooting when Trigger isn't available
- // drum1.noteOn();           //Play the drum note 
- // drum2.noteOn();
- // digitalWrite(Trig3LED, HIGH); 
- // delay(500);               // wait for half a second    
+/*
 
+//DRUM2
+  drum2.noteOn();
+  envelope4.noteOn(); //drum envelope
+  envelope6.noteOn(); //noise source
+  delay(100);
+  envelope4.noteOff();
+  envelope6.noteOff();
+
+//DRUM1
+  drum1.noteOn();   //Play the drum1 sound just once
+  envelope3.noteOn(); //drum envelope
+  envelope5.noteOn(); //noise source
+  delay(100);
+  envelope3.noteOff();
+  envelope5.noteOff();
+   
+ // digitalWrite(Trig3LED, HIGH); 
+  delay(500);               // wait for half a second    
+*/
     
 } //End of main Loop
